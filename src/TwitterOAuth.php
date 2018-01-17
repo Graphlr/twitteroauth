@@ -292,24 +292,53 @@ class TwitterOAuth extends Config
      */
     private function uploadMediaChunked($path, array $parameters)
     {
-        $init = $this->http('POST', self::UPLOAD_HOST, $path, $this->mediaInitParameters($parameters));
+        // Init
+        $init = $this->http('POST', self::UPLOAD_HOST, $path, [
+            'command' => 'INIT',
+            'media_type' => $parameters['media_type'],
+            'total_bytes' => filesize($parameters['media']),
+            'media_category' => $parameters['media_category']
+        ]);
+
         // Append
-        $segmentIndex = 0;
+        $segment_index = 0;
         $media = fopen($parameters['media'], 'rb');
-        while (!feof($media)) {
+        while (!feof($media))
+        {
             $this->http('POST', self::UPLOAD_HOST, 'media/upload', [
                 'command' => 'APPEND',
                 'media_id' => $init->media_id_string,
-                'segment_index' => $segmentIndex++,
-                'media_data' => base64_encode(fread($media, $this->chunkSize))
+                'segment_index' => $segment_index++,
+                'media_data' => base64_encode(fread($media, self::UPLOAD_CHUNK))
             ]);
         }
         fclose($media);
+
         // Finalize
         $finalize = $this->http('POST', self::UPLOAD_HOST, 'media/upload', [
             'command' => 'FINALIZE',
             'media_id' => $init->media_id_string
         ]);
+
+
+        $ready = false;
+
+        while($ready == false) {
+
+            // Status
+            $status = $this->http('GET', self::UPLOAD_HOST, $path, [
+                'command' => 'STATUS',
+                'media_id' => $init->media_id_string,
+            ]);
+
+            if($status->processing_info->state == 'in_progress') {
+                sleep($status->processing_info->check_after_secs);
+            }
+            else {
+                break;
+            }
+        }
+
         return $finalize;
     }
 
