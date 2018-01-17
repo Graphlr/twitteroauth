@@ -28,7 +28,7 @@
     },
     "autoload": {
         "psr-4": {
-            "Graphlr\\TwitterOAuth\\": "src"
+            "Abraham\\TwitterOAuth\\": "src"
         }
     }
 }
